@@ -18,7 +18,7 @@ namespace LCD1602
         private const uint CursorOff = 0x00;
         private const uint BlinkOn = 0x01;
         private const uint BlinkOff = 0x00;
-
+        private const uint DisplayControl = 0x08;
         private uint _value;
 
         public DisplayOnOffControl()
@@ -27,25 +27,57 @@ namespace LCD1602
             _value = DisplayOn | CursorOff | BlinkOff;
         }
 
-        public uint NoDisplay => _value &= ~DisplayOn;
-        public uint Display => _value |= DisplayOn;
-        public uint Blink => _value |= BlinkOn;
-        public uint NoBlink => _value &= ~BlinkOn;
+        public uint NoDisplay => DisplayControl | (_value &= ~DisplayOn);
+        public uint Display => DisplayControl | (_value |= DisplayOn);
+        public uint Blink => DisplayControl | (_value |= BlinkOn);
+        public uint NoBlink => DisplayControl | (_value &= ~BlinkOn);
     }
-
     public class DisplayEntryMode
     {
-        private readonly uint _value; // flags for display entry mode     
+        private uint _value; // flags for display entry mode     
         private const uint EntryRight = 0x00;
         private const uint EntryLeft = 0x02;
         private const uint EntryShiftIncrement = 0x01;
         private const uint EntryShiftDecrement = 0x00;
+        private const uint EntryMode = 0x04;
 
         public DisplayEntryMode() => _value = EntryLeft | EntryShiftDecrement;  // Initialize to default text direction (for romance languages)
+        public uint EntryModeSet => EntryMode | _value;
+        public uint LeftToRight
+        {
+            get
+            {
+                _value |= EntryLeft;
+                return EntryModeSet | _value;
+            }
+        }
+        public uint RightToLeft
+        {
+            get
+            {
+                _value &= ~EntryRight;
+                return EntryModeSet | _value;
+            }
+        }
 
-        public static implicit operator uint(DisplayEntryMode d) => d._value;
+        public uint AutoScroll
+        {
+            get
+            {
+                _value |= EntryShiftIncrement;
+                return EntryModeSet | _value;
+            }
+        }
+
+        public uint NoAutoScroll
+        {
+            get
+            {
+                _value &= ~EntryShiftIncrement;
+                return EntryModeSet | _value;
+            }
+        }
     }
-
     public class DisplayCursorShift
     {
         // flags for display/cursor shift   ;
@@ -53,6 +85,9 @@ namespace LCD1602
         private const uint CursorMove = 0x00;
         private const uint MoveRight = 0x04;
         private const uint MoveLeft = 0x00;
+        private static uint CursorShift => 0x100;
+        public uint ScrollDisplayLeft => CursorShift | DisplayMove | MoveLeft;
+        public uint ScrollDisplayRight => CursorShift | DisplayMove | MoveRight;
     }
     public class DisplayFunction
     {
@@ -84,40 +119,75 @@ namespace LCD1602
 }
 public class Command
 {
+    private readonly uint[] _rowOffsets = new uint[4];
+    private readonly uint _numLines;
     private readonly DisplayOnOffControl _displayOnOffControl;
     private readonly DisplayFunction _displayFunction;
     private readonly DisplayEntryMode _displayEntryMode;
     private readonly DisplayCursorShift _displayCursorShift;
 
-    private const uint ReturnHome = 0x02;
-    private const uint EntryModeSet = 0x04;
-    private const uint DisplayControl = 0x08;
-    private const uint CursorShift = 0x10;
-    private const uint LCD_FUNCTIONSET = 0x20;
-    private const uint SetCGramAddr = 0x40;
-    private const uint SetDDramAddr = 0x80;
-
     public Command(DisplayOnOffControl displayOnOffControl,
         DisplayFunction displayFunction,
         DisplayEntryMode displayEntryMode,
-        DisplayCursorShift displayCursorShift)
+        DisplayCursorShift displayCursorShift,
+        uint numLines)
     {
         _displayOnOffControl = displayOnOffControl;
         _displayFunction = displayFunction;
         _displayEntryMode = displayEntryMode;
         _displayCursorShift = displayCursorShift;
+        _numLines = numLines;
+        SetRowOffsets(0x00, 0x40);
     }
 
     public uint ClearDisplay => 0x01;
+    public uint NoDisplay => _displayOnOffControl.NoDisplay;
+    public uint Display => _displayOnOffControl.Display;
+    public uint NoBlink => _displayOnOffControl.NoBlink;
+    public uint Blink => _displayOnOffControl.Blink;
 
-    public uint NoDisplay => DisplayControl | _displayOnOffControl.NoDisplay;
-    public uint Display => DisplayControl | _displayOnOffControl.Display;
-    public uint NoBlink => DisplayControl | _displayOnOffControl.NoBlink;
-    public uint Blink => DisplayControl | _displayOnOffControl.Blink;
+    public uint FunctionSet => 0x20 | _displayFunction;
+    public uint EntryModeSet => _displayEntryMode.EntryModeSet;
+    public uint ReturnHome => 0x02;
+    public uint SetCGramAddr => 0x40;
 
-    public uint FunctionSet => LCD_FUNCTIONSET | _displayFunction;
-    public uint EntryMode => EntryModeSet | _displayEntryMode;
+    public uint ScrollDisplayLeft => _displayCursorShift.ScrollDisplayLeft;
+    public uint ScrollDisplayRight => _displayCursorShift.ScrollDisplayRight;
+    public uint RightToLeft => _displayEntryMode.RightToLeft;
+    public uint LeftToRight => _displayEntryMode.LeftToRight;
+    public uint AutoScroll => _displayEntryMode.AutoScroll;
+    public uint NoAutoScroll => _displayEntryMode.NoAutoScroll;
 
+
+    public uint SetDDramAddr(uint col, uint row)
+    {
+        var maxlines = (uint)_rowOffsets.Length;
+
+        if (row >= maxlines)
+        {
+            row = maxlines - 1;    // we count rows starting w/ 0
+        }
+        if (row >= _numLines)
+        {
+            row = _numLines - 1;    // we count rows starting w/ 0
+        }
+        return 0x80 | (col + _rowOffsets[row]);
+    }
+
+    private void SetRowOffsets(uint row0, uint row1)
+    {
+        const uint cols = 16;
+        _rowOffsets[0] = row0;
+        _rowOffsets[1] = row1;
+        _rowOffsets[2] = row0 + cols;
+        _rowOffsets[3] = row1 + cols;
+    }
+
+    public uint CreateChar(uint location)
+    {
+        location &= 0x7; // we only have 8 locations 0-7
+        return SetCGramAddr | (location << 3);
+    }
 }
 
 public class LiquidCrystal
@@ -131,6 +201,7 @@ public class LiquidCrystal
     private readonly GpioController _gpio = new();
     private readonly Command _command;
     private readonly DataPinMode _dataPinMode;
+    private readonly uint _numLines;
 
     public LiquidCrystal(int rs, int enable,
              int d0, int d1, int d2, int d3,
@@ -148,10 +219,11 @@ public class LiquidCrystal
         _dataPins[6] = 0;
         _dataPins[7] = 0;
         _dataPinMode = DataPinMode.Four;
-        _command = new Command(new DisplayOnOffControl(), 
-            new DisplayFunction(lines, dotSize, _dataPinMode), 
-            new DisplayEntryMode(), 
-            new DisplayCursorShift());
+        _numLines = lines;
+        _command = new Command(new DisplayOnOffControl(),
+            new DisplayFunction(lines, dotSize, _dataPinMode),
+            new DisplayEntryMode(),
+            new DisplayCursorShift(), lines);
 
         Initialize();
     }
@@ -202,7 +274,7 @@ public class LiquidCrystal
         // clear it off
         Clear();
         // set the entry mode
-        Command(_command.EntryMode);
+        Command(_command.EntryModeSet);
     }
 
     private void Command(uint value)
@@ -268,5 +340,29 @@ public class LiquidCrystal
     public void Display() => Command(_command.Display);
     public void NoBlink() => Command(_command.NoBlink);
     public void Blink() => Command(_command.Blink);
+
+    public void Home()
+    {
+        Command(_command.ReturnHome);  // set cursor position to zero
+        DelayMicroseconds(2000, false);  // this command takes a long time!
+    }
+
+    public void SetCursor(uint col, uint row) => Command(_command.SetDDramAddr(col, row));
+
+    public void ScrollDisplayLeft() => Command(_command.ScrollDisplayLeft);
+    public void ScrollDisplayRight() => Command(_command.ScrollDisplayRight);
+    public void LeftToRight() => Command(_command.LeftToRight);
+    public void RightToLeft() => Command(_command.RightToLeft);
+
+    public void AutoScroll() => Command(_command.AutoScroll);
+    public void NoAutoScroll() => Command(_command.NoAutoScroll);
+
+    // Allows us to fill the first 8 CGRAM locations
+    // with custom characters
+    public void CreateChar(uint location, uint[] charMap)
+    {
+        Command(_command.CreateChar(location));
+        for (var i = 0; i < 8; i++) Write(charMap[i]);
+    }
 }
 
