@@ -48,7 +48,7 @@ namespace LCD1602
             get
             {
                 _value |= EntryLeft;
-                return EntryModeSet | _value;
+                return EntryModeSet;
             }
         }
         public uint RightToLeft
@@ -56,25 +56,23 @@ namespace LCD1602
             get
             {
                 _value &= ~EntryRight;
-                return EntryModeSet | _value;
+                return EntryModeSet;
             }
         }
-
         public uint AutoScroll
         {
             get
             {
                 _value |= EntryShiftIncrement;
-                return EntryModeSet | _value;
+                return EntryModeSet;
             }
         }
-
         public uint NoAutoScroll
         {
             get
             {
                 _value &= ~EntryShiftIncrement;
-                return EntryModeSet | _value;
+                return EntryModeSet;
             }
         }
     }
@@ -114,7 +112,7 @@ namespace LCD1602
                 _value |= TwoLine;
         }
 
-        public static implicit operator uint(DisplayFunction d) => d._value;
+        public uint FunctionSet => 0x20 | _value;
     }
 }
 public class Command
@@ -146,18 +144,16 @@ public class Command
     public uint NoBlink => _displayOnOffControl.NoBlink;
     public uint Blink => _displayOnOffControl.Blink;
 
-    public uint FunctionSet => 0x20 | _displayFunction;
+    public uint FunctionSet => _displayFunction.FunctionSet;
     public uint EntryModeSet => _displayEntryMode.EntryModeSet;
     public uint ReturnHome => 0x02;
     public uint SetCGramAddr => 0x40;
-
     public uint ScrollDisplayLeft => _displayCursorShift.ScrollDisplayLeft;
     public uint ScrollDisplayRight => _displayCursorShift.ScrollDisplayRight;
     public uint RightToLeft => _displayEntryMode.RightToLeft;
     public uint LeftToRight => _displayEntryMode.LeftToRight;
     public uint AutoScroll => _displayEntryMode.AutoScroll;
     public uint NoAutoScroll => _displayEntryMode.NoAutoScroll;
-
 
     public uint SetDDramAddr(uint col, uint row)
     {
@@ -173,7 +169,6 @@ public class Command
         }
         return 0x80 | (col + _rowOffsets[row]);
     }
-
     private void SetRowOffsets(uint row0, uint row1)
     {
         const uint cols = 16;
@@ -182,7 +177,6 @@ public class Command
         _rowOffsets[2] = row0 + cols;
         _rowOffsets[3] = row1 + cols;
     }
-
     public uint CreateChar(uint location)
     {
         location &= 0x7; // we only have 8 locations 0-7
@@ -197,11 +191,9 @@ public class LiquidCrystal
     private readonly int _enablePin; // activated by a HIGH pulse.
     private readonly int[] _dataPins = new int[8];
 
-    private readonly uint[] _rowOffsets = new uint[4];
     private readonly GpioController _gpio = new();
     private readonly Command _command;
     private readonly DataPinMode _dataPinMode;
-    private readonly uint _numLines;
 
     public LiquidCrystal(int rs, int enable,
              int d0, int d1, int d2, int d3,
@@ -219,7 +211,6 @@ public class LiquidCrystal
         _dataPins[6] = 0;
         _dataPins[7] = 0;
         _dataPinMode = DataPinMode.Four;
-        _numLines = lines;
         _command = new Command(new DisplayOnOffControl(),
             new DisplayFunction(lines, dotSize, _dataPinMode),
             new DisplayEntryMode(),
@@ -230,9 +221,6 @@ public class LiquidCrystal
 
     private void Initialize()
     {
-        const uint cols = 16;
-        SetRowOffsets(0x00, 0x40, 0x00 + cols, 0x40 + cols);
-
         _gpio.OpenPin(_rsPin, PinMode.Output);
         if (_rwPin != 255)
             _gpio.OpenPin(_rwPin, PinMode.Output);
@@ -276,7 +264,6 @@ public class LiquidCrystal
         // set the entry mode
         Command(_command.EntryModeSet);
     }
-
     private void Command(uint value)
     {
         Send(value, PinValue.Low);
@@ -295,13 +282,6 @@ public class LiquidCrystal
             Write4Bits(value >> 4);
             Write4Bits(value);
         }
-    }
-    private void SetRowOffsets(uint row0, uint row1, uint row2, uint row3)
-    {
-        _rowOffsets[0] = row0;
-        _rowOffsets[1] = row1;
-        _rowOffsets[2] = row2;
-        _rowOffsets[3] = row3;
     }
     private void PulseEnable()
     {
@@ -348,15 +328,12 @@ public class LiquidCrystal
     }
 
     public void SetCursor(uint col, uint row) => Command(_command.SetDDramAddr(col, row));
-
     public void ScrollDisplayLeft() => Command(_command.ScrollDisplayLeft);
     public void ScrollDisplayRight() => Command(_command.ScrollDisplayRight);
     public void LeftToRight() => Command(_command.LeftToRight);
     public void RightToLeft() => Command(_command.RightToLeft);
-
     public void AutoScroll() => Command(_command.AutoScroll);
     public void NoAutoScroll() => Command(_command.NoAutoScroll);
-
     // Allows us to fill the first 8 CGRAM locations
     // with custom characters
     public void CreateChar(uint location, uint[] charMap)
