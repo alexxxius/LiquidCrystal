@@ -1,345 +1,166 @@
-﻿using System.Device.Gpio;
+﻿using System.Device;
+using System.Device.Gpio;
 using System.Threading;
 using LCD1602;
-using static System.Device.DelayHelper;
 
-namespace LCD1602
+namespace TestLiquidCrystal
 {
-    public enum DataPinMode
+    public class LiquidCrystal
     {
-        Eight = 8,
-        Four = 4
-    }
-    public class DisplayOnOffControl
-    {
-        private const uint DisplayOn = 0x04;
-        private const uint DisplayOff = 0x00;
-        private const uint CursorOn = 0x02;
-        private const uint CursorOff = 0x00;
-        private const uint BlinkOn = 0x01;
-        private const uint BlinkOff = 0x00;
-        private const uint DisplayControl = 0x08;
-        private uint _value;
+        private readonly int _rsPin; // LOW: command. HIGH: character.
+        private readonly int _rwPin; // LOW: write to LCD. HIGH: read from LCD.
+        private readonly int _enablePin; // activated by a HIGH pulse.
+        private readonly int[] _dataPins = new int[8];
 
-        public DisplayOnOffControl()
+        private readonly GpioController _gpio = new();
+        private readonly Command _command;
+        private readonly DataPinMode _dataPinMode;
+
+        public LiquidCrystal(int rs, int enable,
+            int d0, int d1, int d2, int d3,
+            uint lines = 1, uint dotSize = 0x00)
         {
-            // turn the display on with no cursor or blinking default
-            _value = DisplayOn | CursorOff | BlinkOff;
+            _rsPin = rs;
+            _rwPin = 255;
+            _enablePin = enable;
+            _dataPins[0] = d0;
+            _dataPins[1] = d1;
+            _dataPins[2] = d2;
+            _dataPins[3] = d3;
+            _dataPins[4] = 0;
+            _dataPins[5] = 0;
+            _dataPins[6] = 0;
+            _dataPins[7] = 0;
+            _dataPinMode = DataPinMode.Four;
+            _command = new Command(new DisplayOnOffControl(),
+                new DisplayFunction(lines, dotSize, _dataPinMode),
+                new DisplayEntryMode(),
+                new DisplayCursorShift(), lines);
+
+            Initialize();
         }
 
-        public uint NoDisplay => DisplayControl | (_value &= ~DisplayOn);
-        public uint Display => DisplayControl | (_value |= DisplayOn);
-        public uint Blink => DisplayControl | (_value |= BlinkOn);
-        public uint NoBlink => DisplayControl | (_value &= ~BlinkOn);
-    }
-    public class DisplayEntryMode
-    {
-        private uint _value; // flags for display entry mode     
-        private const uint EntryRight = 0x00;
-        private const uint EntryLeft = 0x02;
-        private const uint EntryShiftIncrement = 0x01;
-        private const uint EntryShiftDecrement = 0x00;
-        private const uint EntryMode = 0x04;
+        private void Initialize()
+        {
+            _gpio.OpenPin(_rsPin, PinMode.Output);
+            if (_rwPin != 255)
+                _gpio.OpenPin(_rwPin, PinMode.Output);
+            _gpio.OpenPin(_enablePin, PinMode.Output);
 
-        public DisplayEntryMode() => _value = EntryLeft | EntryShiftDecrement;  // Initialize to default text direction (for romance languages)
-        public uint EntryModeSet => EntryMode | _value;
-        public uint LeftToRight
-        {
-            get
-            {
-                _value |= EntryLeft;
-                return EntryModeSet;
-            }
-        }
-        public uint RightToLeft
-        {
-            get
-            {
-                _value &= ~EntryRight;
-                return EntryModeSet;
-            }
-        }
-        public uint AutoScroll
-        {
-            get
-            {
-                _value |= EntryShiftIncrement;
-                return EntryModeSet;
-            }
-        }
-        public uint NoAutoScroll
-        {
-            get
-            {
-                _value &= ~EntryShiftIncrement;
-                return EntryModeSet;
-            }
-        }
-    }
-    public class DisplayCursorShift
-    {
-        // flags for display/cursor shift   ;
-        private const uint DisplayMove = 0x08;
-        private const uint CursorMove = 0x00;
-        private const uint MoveRight = 0x04;
-        private const uint MoveLeft = 0x00;
-        private static uint CursorShift => 0x100;
-        public uint ScrollDisplayLeft => CursorShift | DisplayMove | MoveLeft;
-        public uint ScrollDisplayRight => CursorShift | DisplayMove | MoveRight;
-    }
-    public class DisplayFunction
-    {
-        // flags for function set           ;
-        private const uint Bit8Mode = 0x10;
-        private const uint Bit4Mode = 0x00;
-        private const uint TwoLine = 0x08;
-        private const uint OneLine = 0x00;
-        private const uint Dots5X10 = 0x04;
-        private const uint Dots5X8 = 0x00;
-        private readonly uint _value;
+            // Do these once, instead of every time a character is drawn for speed reasons.
+            for (var i = 0; i < (int)_dataPinMode; ++i)
+                _gpio.OpenPin(_dataPins[i], PinMode.Output);
 
-        public DisplayFunction(uint lines, uint dotSize, DataPinMode dataPinMode)
+            // SEE PAGE 45/46 FOR INITIALIZATION SPECIFICATION!
+            // according to datasheet, we need at least 40 ms after power rises above 2.7 V
+            // before sending commands. Arduino can turn on way before 4.5 V so we'll wait 50
+            Thread.Sleep(50);
+            // Now we pull both RS and R/W low to begin commands
+            _gpio.Write(_rsPin, PinValue.Low);
+            _gpio.Write(_enablePin, PinValue.Low);
+
+            if (_rwPin != 255)
+                _gpio.Write(_rwPin, PinValue.Low);
+
+            //put the LCD into 4 bit or 8 bit mode
+            if (_dataPinMode == DataPinMode.Four)
+            {
+                // this is according to the Hitachi HD44780 datasheet
+                // figure 24, pg 46
+                // we start in 8bit mode, try to set 4 bit mode
+                Write4Bits(0x03);
+                DelayHelper.DelayMicroseconds(4500, false); // wait min 4.1ms 
+                // second try
+                Command(_command.FunctionSet);
+                DelayHelper.DelayMicroseconds(150, false);
+                // third go
+                Command(_command.FunctionSet);
+            }
+            // finally, set # lines, font size, etc.
+            Command(_command.FunctionSet);
+
+            Display();
+            // clear it off
+            Clear();
+            // set the entry mode
+            Command(_command.EntryModeSet);
+        }
+        private void Command(uint value)
         {
-            if (dataPinMode == DataPinMode.Four)
-                _value = Bit4Mode | OneLine | Dots5X8;
+            Send(value, PinValue.Low);
+        }
+        private void Send(uint value, PinValue mode)
+        {
+            _gpio.Write(_rsPin, mode);
+
+            // if there is a RW pin indicated, set it low to Write
+            if (_rwPin != 255) _gpio.Write(_rwPin, PinValue.Low);
+
+            if (_dataPinMode == DataPinMode.Eight)
+                Write8Bits(value);
             else
-                _value = Bit8Mode | OneLine | Dots5X8;
-
-            if ((dotSize != Dots5X8) && (lines == 1))
-                _value |= Dots5X10;
-
-            if (lines > 1)
-                _value |= TwoLine;
+            {
+                Write4Bits(value >> 4);
+                Write4Bits(value);
+            }
+        }
+        private void PulseEnable()
+        {
+            _gpio.Write(_enablePin, PinValue.Low);
+            DelayHelper.DelayMicroseconds(1, false);
+            _gpio.Write(_enablePin, PinValue.High);
+            DelayHelper.DelayMicroseconds(1, false);    // enable pulse must be >450 ns
+            _gpio.Write(_enablePin, PinValue.Low);
+            DelayHelper.DelayMicroseconds(100, false);   // commands need >37 us to settle
+        }
+        private void Write4Bits(uint value)
+        {
+            for (var i = 0; i < 4; i++)
+                _gpio.Write(_dataPins[i], ((int)value >> i) & 0x01);
+            PulseEnable();
+        }
+        private void Write8Bits(uint value)
+        {
+            for (var i = 0; i < 8; i++)
+                _gpio.Write(_dataPins[i], ((int)value >> i) & 0x01);
+            PulseEnable();
         }
 
-        public uint FunctionSet => 0x20 | _value;
+        /********** high level commands, for the user! */
+        public void Write(uint value) => Send(value, PinValue.High);
+        public void Write(string message)
+        {
+            foreach (char c in message) Write(c);
+        }
+        public void Clear()
+        {
+            Send(_command.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero
+            DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
+        }
+        public void NoDisplay() => Command(_command.NoDisplay);
+        public void Display() => Command(_command.Display);
+        public void NoBlink() => Command(_command.NoBlink);
+        public void Blink() => Command(_command.Blink);
+
+        public void Home()
+        {
+            Command(_command.ReturnHome);  // set cursor position to zero
+            DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
+        }
+
+        public void SetCursor(uint col, uint row) => Command(_command.SetDDramAddr(col, row));
+        public void ScrollDisplayLeft() => Command(_command.ScrollDisplayLeft);
+        public void ScrollDisplayRight() => Command(_command.ScrollDisplayRight);
+        public void LeftToRight() => Command(_command.LeftToRight);
+        public void RightToLeft() => Command(_command.RightToLeft);
+        public void AutoScroll() => Command(_command.AutoScroll);
+        public void NoAutoScroll() => Command(_command.NoAutoScroll);
+        // Allows us to fill the first 8 CGRAM locations
+        // with custom characters
+        public void CreateChar(uint location, uint[] charMap)
+        {
+            Command(_command.CreateChar(location));
+            for (var i = 0; i < 8; i++) Write(charMap[i]);
+        }
     }
 }
-public class Command
-{
-    private readonly uint[] _rowOffsets = new uint[4];
-    private readonly uint _numLines;
-    private readonly DisplayOnOffControl _displayOnOffControl;
-    private readonly DisplayFunction _displayFunction;
-    private readonly DisplayEntryMode _displayEntryMode;
-    private readonly DisplayCursorShift _displayCursorShift;
-
-    public Command(DisplayOnOffControl displayOnOffControl,
-        DisplayFunction displayFunction,
-        DisplayEntryMode displayEntryMode,
-        DisplayCursorShift displayCursorShift,
-        uint numLines)
-    {
-        _displayOnOffControl = displayOnOffControl;
-        _displayFunction = displayFunction;
-        _displayEntryMode = displayEntryMode;
-        _displayCursorShift = displayCursorShift;
-        _numLines = numLines;
-        SetRowOffsets(0x00, 0x40);
-    }
-
-    public uint ClearDisplay => 0x01;
-    public uint NoDisplay => _displayOnOffControl.NoDisplay;
-    public uint Display => _displayOnOffControl.Display;
-    public uint NoBlink => _displayOnOffControl.NoBlink;
-    public uint Blink => _displayOnOffControl.Blink;
-
-    public uint FunctionSet => _displayFunction.FunctionSet;
-    public uint EntryModeSet => _displayEntryMode.EntryModeSet;
-    public uint ReturnHome => 0x02;
-    public uint SetCGramAddr => 0x40;
-    public uint ScrollDisplayLeft => _displayCursorShift.ScrollDisplayLeft;
-    public uint ScrollDisplayRight => _displayCursorShift.ScrollDisplayRight;
-    public uint RightToLeft => _displayEntryMode.RightToLeft;
-    public uint LeftToRight => _displayEntryMode.LeftToRight;
-    public uint AutoScroll => _displayEntryMode.AutoScroll;
-    public uint NoAutoScroll => _displayEntryMode.NoAutoScroll;
-
-    public uint SetDDramAddr(uint col, uint row)
-    {
-        var maxlines = (uint)_rowOffsets.Length;
-
-        if (row >= maxlines)
-        {
-            row = maxlines - 1;    // we count rows starting w/ 0
-        }
-        if (row >= _numLines)
-        {
-            row = _numLines - 1;    // we count rows starting w/ 0
-        }
-        return 0x80 | (col + _rowOffsets[row]);
-    }
-    private void SetRowOffsets(uint row0, uint row1)
-    {
-        const uint cols = 16;
-        _rowOffsets[0] = row0;
-        _rowOffsets[1] = row1;
-        _rowOffsets[2] = row0 + cols;
-        _rowOffsets[3] = row1 + cols;
-    }
-    public uint CreateChar(uint location)
-    {
-        location &= 0x7; // we only have 8 locations 0-7
-        return SetCGramAddr | (location << 3);
-    }
-}
-
-public class LiquidCrystal
-{
-    private readonly int _rsPin; // LOW: command. HIGH: character.
-    private readonly int _rwPin; // LOW: write to LCD. HIGH: read from LCD.
-    private readonly int _enablePin; // activated by a HIGH pulse.
-    private readonly int[] _dataPins = new int[8];
-
-    private readonly GpioController _gpio = new();
-    private readonly Command _command;
-    private readonly DataPinMode _dataPinMode;
-
-    public LiquidCrystal(int rs, int enable,
-             int d0, int d1, int d2, int d3,
-             uint lines = 1, uint dotSize = 0x00)
-    {
-        _rsPin = rs;
-        _rwPin = 255;
-        _enablePin = enable;
-        _dataPins[0] = d0;
-        _dataPins[1] = d1;
-        _dataPins[2] = d2;
-        _dataPins[3] = d3;
-        _dataPins[4] = 0;
-        _dataPins[5] = 0;
-        _dataPins[6] = 0;
-        _dataPins[7] = 0;
-        _dataPinMode = DataPinMode.Four;
-        _command = new Command(new DisplayOnOffControl(),
-            new DisplayFunction(lines, dotSize, _dataPinMode),
-            new DisplayEntryMode(),
-            new DisplayCursorShift(), lines);
-
-        Initialize();
-    }
-
-    private void Initialize()
-    {
-        _gpio.OpenPin(_rsPin, PinMode.Output);
-        if (_rwPin != 255)
-            _gpio.OpenPin(_rwPin, PinMode.Output);
-        _gpio.OpenPin(_enablePin, PinMode.Output);
-
-        // Do these once, instead of every time a character is drawn for speed reasons.
-        for (var i = 0; i < (int)_dataPinMode; ++i)
-            _gpio.OpenPin(_dataPins[i], PinMode.Output);
-
-        // SEE PAGE 45/46 FOR INITIALIZATION SPECIFICATION!
-        // according to datasheet, we need at least 40 ms after power rises above 2.7 V
-        // before sending commands. Arduino can turn on way before 4.5 V so we'll wait 50
-        Thread.Sleep(50);
-        // Now we pull both RS and R/W low to begin commands
-        _gpio.Write(_rsPin, PinValue.Low);
-        _gpio.Write(_enablePin, PinValue.Low);
-
-        if (_rwPin != 255)
-            _gpio.Write(_rwPin, PinValue.Low);
-
-        //put the LCD into 4 bit or 8 bit mode
-        if (_dataPinMode == DataPinMode.Four)
-        {
-            // this is according to the Hitachi HD44780 datasheet
-            // figure 24, pg 46
-            // we start in 8bit mode, try to set 4 bit mode
-            Write4Bits(0x03);
-            DelayMicroseconds(4500, false); // wait min 4.1ms 
-            // second try
-            Command(_command.FunctionSet);
-            DelayMicroseconds(150, false);
-            // third go
-            Command(_command.FunctionSet);
-        }
-        // finally, set # lines, font size, etc.
-        Command(_command.FunctionSet);
-
-        Display();
-        // clear it off
-        Clear();
-        // set the entry mode
-        Command(_command.EntryModeSet);
-    }
-    private void Command(uint value)
-    {
-        Send(value, PinValue.Low);
-    }
-    private void Send(uint value, PinValue mode)
-    {
-        _gpio.Write(_rsPin, mode);
-
-        // if there is a RW pin indicated, set it low to Write
-        if (_rwPin != 255) _gpio.Write(_rwPin, PinValue.Low);
-
-        if (_dataPinMode == DataPinMode.Eight)
-            Write8Bits(value);
-        else
-        {
-            Write4Bits(value >> 4);
-            Write4Bits(value);
-        }
-    }
-    private void PulseEnable()
-    {
-        _gpio.Write(_enablePin, PinValue.Low);
-        DelayMicroseconds(1, false);
-        _gpio.Write(_enablePin, PinValue.High);
-        DelayMicroseconds(1, false);    // enable pulse must be >450 ns
-        _gpio.Write(_enablePin, PinValue.Low);
-        DelayMicroseconds(100, false);   // commands need >37 us to settle
-    }
-    private void Write4Bits(uint value)
-    {
-        for (var i = 0; i < 4; i++)
-            _gpio.Write(_dataPins[i], ((int)value >> i) & 0x01);
-        PulseEnable();
-    }
-    private void Write8Bits(uint value)
-    {
-        for (var i = 0; i < 8; i++)
-            _gpio.Write(_dataPins[i], ((int)value >> i) & 0x01);
-        PulseEnable();
-    }
-
-    /********** high level commands, for the user! */
-    public void Write(uint value) => Send(value, PinValue.High);
-    public void Write(string message)
-    {
-        foreach (char c in message) Write(c);
-    }
-    public void Clear()
-    {
-        Send(_command.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero
-        DelayMicroseconds(2000, false);  // this command takes a long time!
-    }
-    public void NoDisplay() => Command(_command.NoDisplay);
-    public void Display() => Command(_command.Display);
-    public void NoBlink() => Command(_command.NoBlink);
-    public void Blink() => Command(_command.Blink);
-
-    public void Home()
-    {
-        Command(_command.ReturnHome);  // set cursor position to zero
-        DelayMicroseconds(2000, false);  // this command takes a long time!
-    }
-
-    public void SetCursor(uint col, uint row) => Command(_command.SetDDramAddr(col, row));
-    public void ScrollDisplayLeft() => Command(_command.ScrollDisplayLeft);
-    public void ScrollDisplayRight() => Command(_command.ScrollDisplayRight);
-    public void LeftToRight() => Command(_command.LeftToRight);
-    public void RightToLeft() => Command(_command.RightToLeft);
-    public void AutoScroll() => Command(_command.AutoScroll);
-    public void NoAutoScroll() => Command(_command.NoAutoScroll);
-    // Allows us to fill the first 8 CGRAM locations
-    // with custom characters
-    public void CreateChar(uint location, uint[] charMap)
-    {
-        Command(_command.CreateChar(location));
-        for (var i = 0; i < 8; i++) Write(charMap[i]);
-    }
-}
-

@@ -18,6 +18,12 @@
   </PropertyGroup>
   <Import Project="$(NanoFrameworkProjectSystemPath)NFProjectSystem.props" Condition="Exists('$(NanoFrameworkProjectSystemPath)NFProjectSystem.props')" />
   <ItemGroup>
+    <Compile Include="Command.cs" />
+    <Compile Include="DataPinMode.cs" />
+    <Compile Include="DisplayCursorShift.cs" />
+    <Compile Include="DisplayEntryMode.cs" />
+    <Compile Include="DisplayFunction.cs" />
+    <Compile Include="DisplayOnOffControl.cs" />
     <Compile Include="LiquidCrystal.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
