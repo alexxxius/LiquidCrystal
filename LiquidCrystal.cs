@@ -13,8 +13,12 @@ namespace TestLiquidCrystal
         private readonly int[] _dataPins = new int[8];
 
         private readonly GpioController _gpio = new();
-        private readonly Command _command;
         private readonly DataPinMode _dataPinMode;
+        private DisplayFunctionCommand _displayFunctionCommand;
+        private DisplayEntryModeCommand _displayEntryModeCommand;
+        private DisplayCursorShiftCommand _displayCursorShiftCommand;
+        private DisplayOnOffControlCommand _displayOnOffControlCommand;
+        private  CustomCommand _customCommand;
 
         public LiquidCrystal(int rs, int enable,
             int d0, int d1, int d2, int d3,
@@ -32,16 +36,18 @@ namespace TestLiquidCrystal
             _dataPins[6] = 0;
             _dataPins[7] = 0;
             _dataPinMode = DataPinMode.Four;
-            _command = new Command(new DisplayOnOffControl(),
-                new DisplayFunction(lines, dotSize, _dataPinMode),
-                new DisplayEntryMode(),
-                new DisplayCursorShift(), lines);
-
-            Initialize();
+            
+            Initialize(lines,dotSize);
         }
 
-        private void Initialize()
+        private void Initialize(uint lines, uint dotSize )
         {
+            _displayFunctionCommand = new DisplayFunctionCommand(lines, dotSize, _dataPinMode);
+            _displayEntryModeCommand = new DisplayEntryModeCommand(lines);
+            _displayCursorShiftCommand = new DisplayCursorShiftCommand();
+            _displayOnOffControlCommand = new DisplayOnOffControlCommand();
+            _customCommand = new CustomCommand();
+
             _gpio.OpenPin(_rsPin, PinMode.Output);
             if (_rwPin != 255)
                 _gpio.OpenPin(_rwPin, PinMode.Output);
@@ -71,19 +77,19 @@ namespace TestLiquidCrystal
                 Write4Bits(0x03);
                 DelayHelper.DelayMicroseconds(4500, false); // wait min 4.1ms 
                 // second try
-                Command(_command.FunctionSet);
+                Command(_displayFunctionCommand.FunctionSet);
                 DelayHelper.DelayMicroseconds(150, false);
                 // third go
-                Command(_command.FunctionSet);
+                Command(_displayFunctionCommand.FunctionSet);
             }
             // finally, set # lines, font size, etc.
-            Command(_command.FunctionSet);
+            Command(_displayFunctionCommand.FunctionSet);
 
             Display();
             // clear it off
             Clear();
             // set the entry mode
-            Command(_command.EntryModeSet);
+            Command(_displayEntryModeCommand.EntryModeSet);
         }
         private void Command(uint value)
         {
@@ -134,35 +140,35 @@ namespace TestLiquidCrystal
         }
         public void Clear()
         {
-            Send(_command.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero
+            Send(_displayFunctionCommand.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero
             DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
         }
-        public void NoDisplay() => Command(_command.NoDisplay);
-        public void Display() => Command(_command.Display);
-        public void NoBlink() => Command(_command.NoBlink);
-        public void Blink() => Command(_command.Blink);
+        public void NoDisplay() => Command(_displayOnOffControlCommand.NoDisplay);
+        public void Display() => Command(_displayOnOffControlCommand.Display);
+        public void NoBlink() => Command(_displayOnOffControlCommand.NoBlink);
+        public void Blink() => Command(_displayOnOffControlCommand.Blink);
 
-        public void NoCursor() => Command(_command.NoCursor);
-        public void Cursor() => Command(_command.Cursor);
+        public void NoCursor() => Command(_displayOnOffControlCommand.NoCursor);
+        public void Cursor() => Command(_displayOnOffControlCommand.Cursor);
 
         public void Home()
         {
-            Command(_command.ReturnHome);  // set cursor position to zero
+            Command(_displayFunctionCommand.ReturnHome);  // set cursor position to zero
             DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
         }
 
-        public void SetCursor(uint col, uint row) => Command(_command.SetDDramAddr(col, row));
-        public void ScrollDisplayLeft() => Command(_command.ScrollDisplayLeft);
-        public void ScrollDisplayRight() => Command(_command.ScrollDisplayRight);
-        public void LeftToRight() => Command(_command.LeftToRight);
-        public void RightToLeft() => Command(_command.RightToLeft);
-        public void AutoScroll() => Command(_command.AutoScroll);
-        public void NoAutoScroll() => Command(_command.NoAutoScroll);
+        public void SetCursor(uint col, uint row) => Command(_displayEntryModeCommand.SetCursor(col, row));
+        public void ScrollDisplayLeft() => Command(_displayCursorShiftCommand.ScrollDisplayLeft);
+        public void ScrollDisplayRight() => Command(_displayCursorShiftCommand.ScrollDisplayRight);
+        public void LeftToRight() => Command(_displayEntryModeCommand.LeftToRight);
+        public void RightToLeft() => Command(_displayEntryModeCommand.RightToLeft);
+        public void AutoScroll() => Command(_displayEntryModeCommand.AutoScroll);
+        public void NoAutoScroll() => Command(_displayEntryModeCommand.NoAutoScroll);
         // Allows us to fill the first 8 CGRAM locations
         // with custom characters
         public void CreateChar(uint location, uint[] charMap)
         {
-            Command(_command.CreateChar(location));
+            Command(_customCommand.CreateChar(location));
             for (var i = 0; i < 8; i++) Write(charMap[i]);
         }
     }

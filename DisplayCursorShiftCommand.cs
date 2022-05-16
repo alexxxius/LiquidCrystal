@@ -1,6 +1,6 @@
 ﻿namespace LCD1602
 {
-    public class DisplayCursorShift
+    public class DisplayCursorShiftCommand
     {
         // flags for display/cursor shift   ;
         private const uint DisplayMove = 0x08;

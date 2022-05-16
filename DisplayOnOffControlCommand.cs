@@ -1,6 +1,6 @@
 ﻿namespace TestLiquidCrystal
 {
-    public class DisplayOnOffControl
+    public class DisplayOnOffControlCommand
     {
         private const uint DisplayOn = 0x04;
         private const uint DisplayOff = 0x00;
@@ -11,7 +11,7 @@
         private const uint DisplayControl = 0x08;
         private uint _value;
 
-        public DisplayOnOffControl()
+        public DisplayOnOffControlCommand()
         {
             // turn the display on with no cursor or blinking default
             _value = DisplayOn | CursorOff | BlinkOff;
