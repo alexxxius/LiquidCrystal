@@ -142,6 +142,9 @@ namespace TestLiquidCrystal
         public void NoBlink() => Command(_command.NoBlink);
         public void Blink() => Command(_command.Blink);
 
+        public void NoCursor() => Command(_command.NoCursor);
+        public void Cursor() => Command(_command.Cursor);
+
         public void Home()
         {
             Command(_command.ReturnHome);  // set cursor position to zero

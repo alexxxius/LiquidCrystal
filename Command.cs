@@ -41,6 +41,8 @@ namespace TestLiquidCrystal
         public uint LeftToRight => _displayEntryMode.LeftToRight;
         public uint AutoScroll => _displayEntryMode.AutoScroll;
         public uint NoAutoScroll => _displayEntryMode.NoAutoScroll;
+        public uint NoCursor => _displayOnOffControl.NoCursor;
+        public uint Cursor => _displayOnOffControl.Cursor;
 
         public uint SetDDramAddr(uint col, uint row)
         {

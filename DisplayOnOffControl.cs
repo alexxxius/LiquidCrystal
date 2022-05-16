@@ -21,5 +21,8 @@
         public uint Display => DisplayControl | (_value |= DisplayOn);
         public uint Blink => DisplayControl | (_value |= BlinkOn);
         public uint NoBlink => DisplayControl | (_value &= ~BlinkOn);
+
+        public uint Cursor => DisplayControl | (_value |= CursorOn);
+        public uint NoCursor => DisplayControl | (_value &= ~CursorOn);
     }
 }
