@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using LiquidCrystal;
 
 
@@ -84,6 +86,8 @@ namespace CustomCharacter
             lcd.Write((byte)0); // when calling lcd.write() '0' must be cast as a byte
             lcd.Write(" nanoFrmWrk! ");
             lcd.Write((byte)1);
+
+            Thread.Sleep(Timeout.Infinite);
         }
     }
 }

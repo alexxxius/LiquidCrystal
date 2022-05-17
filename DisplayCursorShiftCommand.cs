@@ -7,7 +7,7 @@
         private const uint CursorMove = 0x00;
         private const uint MoveRight = 0x04;
         private const uint MoveLeft = 0x00;
-        private static uint CursorShift => 0x100;
+        private static uint CursorShift => 0x10;
         public uint ScrollDisplayLeft => CursorShift | DisplayMove | MoveLeft;
         public uint ScrollDisplayRight => CursorShift | DisplayMove | MoveRight;
     }
