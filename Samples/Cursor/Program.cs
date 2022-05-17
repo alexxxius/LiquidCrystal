@@ -1,6 +1,4 @@
-using System;
-using System.Diagnostics;
-using System.Threading;
+using LiquidCrystal;
 
 namespace Cursor
 {
@@ -8,13 +6,15 @@ namespace Cursor
     {
         public static void Main()
         {
-            Debug.WriteLine("Hello from nanoFramework!");
+            while (true)
+            {
+                const int rs = 4, en = 2, d4 = 32, d5 = 33, d6 = 25, d7 = 26;
+                var lcd = new LiquidCrystal.LiquidCrystal(rs, en, d4, d5, d6, d7);
 
-            Thread.Sleep(Timeout.Infinite);
+                lcd.Write("Hello world!");
 
-            // Browse our samples repository: https://github.com/nanoframework/samples
-            // Check our documentation online: https://docs.nanoframework.net/
-            // Join our lively Discord community: https://discord.gg/gCyBu8T
+                lcd.DisplayCursor();
+            }
         }
     }
 }

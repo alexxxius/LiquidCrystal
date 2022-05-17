@@ -6,6 +6,8 @@ namespace LiquidCrystal
 {
     public class LiquidCrystal
     {
+        public uint Cols { get; }
+        public uint Lines { get; }
         private readonly int _rsPin; // LOW: command. HIGH: character.
         private readonly int _rwPin; // LOW: write to LCD. HIGH: read from LCD.
         private readonly int _enablePin; // activated by a HIGH pulse.
@@ -35,7 +37,8 @@ namespace LiquidCrystal
             _dataPins[6] = 0;
             _dataPins[7] = 0;
             _dataPinMode = DataPinMode.Four;
-
+            Lines = lines;
+            Cols = cols;
             Initialize(lines, dotSize, cols);
         }
         public LiquidCrystal(int rs, int enable,
@@ -55,7 +58,8 @@ namespace LiquidCrystal
             _dataPins[6] = d6;
             _dataPins[7] = d7;
             _dataPinMode = DataPinMode.Eight;
-
+            Lines = lines;
+            Cols = cols;
             Initialize(lines, dotSize, cols);
         }
 
@@ -169,10 +173,7 @@ namespace LiquidCrystal
 
         /********** high level commands, for the user! */
         public void Write(uint value) => Send(value, PinValue.High);
-        public void Write(string message)
-        {
-            foreach (char c in message) Write(c);
-        }
+       
         public void Clear()
         {
             Send(_displayFunctionCommand.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero

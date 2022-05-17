@@ -1,5 +1,3 @@
-using System;
-using System.Diagnostics;
 using System.Threading;
 
 namespace TextDirection
@@ -8,13 +6,40 @@ namespace TextDirection
     {
         public static void Main()
         {
-            Debug.WriteLine("Hello from nanoFramework!");
+            const int rs = 4, en = 2, d4 = 32, d5 = 33, d6 = 25, d7 = 26;
+            var lcd = new LiquidCrystal.LiquidCrystal(rs, en, d4, d5, d6, d7);
+            lcd.Cursor();
 
-            Thread.Sleep(Timeout.Infinite);
-
-            // Browse our samples repository: https://github.com/nanoframework/samples
-            // Check our documentation online: https://docs.nanoframework.net/
-            // Join our lively Discord community: https://discord.gg/gCyBu8T
+            uint thisChar = 'a';
+            while (true)
+            {
+                // reverse directions at 'm':
+                if (thisChar == 'm')
+                {
+                    // go right for the next letter
+                    lcd.RightToLeft();
+                }
+                // reverse again at 's':
+                if (thisChar == 's')
+                {
+                    // go left for the next letter
+                    lcd.LeftToRight();
+                }
+                // reset at 'z':
+                if (thisChar > 'z')
+                {
+                    // go to (0,0):
+                    lcd.Home();
+                    // start again at 0
+                    thisChar = 'a';
+                }
+                // print the character
+                lcd.Write(thisChar);
+                // wait a second:
+                Thread.Sleep(1000);
+                // increment the letter:
+                thisChar++;
+            }
         }
     }
 }

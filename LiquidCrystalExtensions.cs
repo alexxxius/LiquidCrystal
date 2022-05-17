@@ -13,7 +13,7 @@ namespace LiquidCrystal
             Thread.Sleep(millisecondsTimeout);
         }
 
-        public static void AutoScroll(this LiquidCrystal lcd, int millisecondsTimeout = 500)
+        public static void AutoScrollText(this LiquidCrystal lcd, int millisecondsTimeout = 500)
         {
             lcd.SetCursor(0, 0);
             // print from 0 to 9:
@@ -39,7 +39,7 @@ namespace LiquidCrystal
             // clear screen for the next loop:
             lcd.Clear();
         }
-        public static void Blink(this LiquidCrystal lcd, int millisecondsTimeout = 500)
+        public static void BlinkDisplay(this LiquidCrystal lcd, int millisecondsTimeout = 500)
         {
             lcd.NoBlink();
             Thread.Sleep(millisecondsTimeout);
@@ -47,6 +47,9 @@ namespace LiquidCrystal
             lcd.Blink();
             Thread.Sleep(millisecondsTimeout);
         }
-       
+        public static void Write(this LiquidCrystal lcd,  string message)
+        {
+            foreach (var c in message) lcd.Write(c);
+        }
     }
 }
