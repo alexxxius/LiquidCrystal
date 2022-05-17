@@ -1,6 +1,6 @@
-﻿using System.Device;
-using System.Device.Gpio;
+﻿using System.Device.Gpio;
 using System.Threading;
+using static System.Device.DelayHelper;
 
 namespace LiquidCrystal
 {
@@ -94,10 +94,26 @@ namespace LiquidCrystal
                 // figure 24, pg 46
                 // we start in 8bit mode, try to set 4 bit mode
                 Write4Bits(0x03);
-                DelayHelper.DelayMicroseconds(4500, false); // wait min 4.1ms 
+                DelayMicroseconds(4500, false); // wait min 4.1ms 
                 // second try
                 Command(_displayFunctionCommand.FunctionSet);
-                DelayHelper.DelayMicroseconds(150, false);
+                DelayMicroseconds(150, false);
+                // third go
+                Command(_displayFunctionCommand.FunctionSet);
+            }
+            else
+            {
+                // this is according to the Hitachi HD44780 datasheet
+                // page 45 figure 23
+
+                // Send function set command sequence
+                Command(_displayFunctionCommand.FunctionSet);
+                DelayMicroseconds(4500, false);  // wait more than 4.1 ms
+
+                // second try
+                Command(_displayFunctionCommand.FunctionSet);
+                DelayMicroseconds(150, false);
+
                 // third go
                 Command(_displayFunctionCommand.FunctionSet);
             }
@@ -132,11 +148,11 @@ namespace LiquidCrystal
         private void PulseEnable()
         {
             _gpio.Write(_enablePin, PinValue.Low);
-            DelayHelper.DelayMicroseconds(1, false);
+            DelayMicroseconds(1, false);
             _gpio.Write(_enablePin, PinValue.High);
-            DelayHelper.DelayMicroseconds(1, false);    // enable pulse must be >450 ns
+            DelayMicroseconds(1, false);    // enable pulse must be >450 ns
             _gpio.Write(_enablePin, PinValue.Low);
-            DelayHelper.DelayMicroseconds(100, false);   // commands need >37 us to settle
+            DelayMicroseconds(100, false);   // commands need >37 us to settle
         }
         private void Write4Bits(uint value)
         {
@@ -160,7 +176,7 @@ namespace LiquidCrystal
         public void Clear()
         {
             Send(_displayFunctionCommand.ClearDisplay, PinValue.Low);  // clear display, set cursor position to zero
-            DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
+            DelayMicroseconds(2000, false);  // this command takes a long time!
         }
         public void NoDisplay() => Command(_displayOnOffControlCommand.NoDisplay);
         public void Display() => Command(_displayOnOffControlCommand.Display);
@@ -173,7 +189,7 @@ namespace LiquidCrystal
         public void Home()
         {
             Command(_displayFunctionCommand.ReturnHome);  // set cursor position to zero
-            DelayHelper.DelayMicroseconds(2000, false);  // this command takes a long time!
+            DelayMicroseconds(2000, false);  // this command takes a long time!
         }
 
         public void SetCursor(uint col, uint row) => Command(_displayEntryModeCommand.SetCursor(col, row));
