@@ -1,6 +1,4 @@
-﻿using LCD1602;
-
-namespace LiquidCrystal
+﻿namespace LiquidCrystal
 {
     public class DisplayFunctionCommand
     {

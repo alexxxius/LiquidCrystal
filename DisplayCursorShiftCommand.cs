@@ -1,4 +1,4 @@
-﻿namespace LCD1602
+﻿namespace LiquidCrystal
 {
     public class DisplayCursorShiftCommand
     {

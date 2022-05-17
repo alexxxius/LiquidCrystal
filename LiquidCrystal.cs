@@ -1,7 +1,6 @@
 ﻿using System.Device;
 using System.Device.Gpio;
 using System.Threading;
-using LCD1602;
 
 namespace LiquidCrystal
 {

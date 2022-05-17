@@ -1,5 +1,4 @@
 using System.Threading;
-using LiquidCrystal;
 namespace HelloWorld
 {
     public class Program
