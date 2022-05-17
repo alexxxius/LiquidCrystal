@@ -1,6 +1,6 @@
 using System.Threading;
 
-namespace TestLiquidCrystal
+namespace LiquidCrystal
 {
     public static class LiquidCrystalExtensions
     {

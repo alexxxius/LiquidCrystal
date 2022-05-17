@@ -1,4 +1,4 @@
-﻿namespace TestLiquidCrystal
+﻿namespace LiquidCrystal
 {
     public class DisplayEntryModeCommand
     {
