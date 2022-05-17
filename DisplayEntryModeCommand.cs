@@ -10,13 +10,14 @@
         private const uint EntryMode = 0x04;
         private readonly uint[] _rowOffsets = new uint[4];
         private readonly uint _numLines;
+        private readonly uint _cols;
         private const uint SetDDramAddr = 0x80;
 
-        public DisplayEntryModeCommand(uint numLines)
+        public DisplayEntryModeCommand(uint numLines, uint cols)
         {
             _numLines = numLines;
+            _cols = cols;
             SetRowOffsets(0x00, 0x40);
-       
             _value = EntryLeft | EntryShiftDecrement;
             // Initialize to default text direction (for romance languages)
         }
@@ -72,11 +73,11 @@
         }
         private void SetRowOffsets(uint row0, uint row1)
         {
-            const uint cols = 16;
+           
             _rowOffsets[0] = row0;
             _rowOffsets[1] = row1;
-            _rowOffsets[2] = row0 + cols;
-            _rowOffsets[3] = row1 + cols;
+            _rowOffsets[2] = row0 + _cols;
+            _rowOffsets[3] = row1 + _cols;
         }
     }
 }
