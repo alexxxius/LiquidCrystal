@@ -22,7 +22,7 @@ namespace LiquidCrystal
 
         public LiquidCrystal(int rs, int enable,
             int d0, int d1, int d2, int d3,
-            int rwPin = 255, uint lines = 1, uint dotSize = 0x00)
+             uint lines = 1, int rwPin = 255, uint dotSize = 0x00)
         {
             _rsPin = rs;
             _rwPin = rwPin;
