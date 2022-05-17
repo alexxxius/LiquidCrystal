@@ -18,14 +18,14 @@ namespace TestLiquidCrystal
         private DisplayEntryModeCommand _displayEntryModeCommand;
         private DisplayCursorShiftCommand _displayCursorShiftCommand;
         private DisplayOnOffControlCommand _displayOnOffControlCommand;
-        private  CustomCommand _customCommand;
+        private CustomCommand _customCommand;
 
         public LiquidCrystal(int rs, int enable,
             int d0, int d1, int d2, int d3,
-            uint lines = 1, uint dotSize = 0x00)
+            int rwPin = 255, uint lines = 1, uint dotSize = 0x00)
         {
             _rsPin = rs;
-            _rwPin = 255;
+            _rwPin = rwPin;
             _enablePin = enable;
             _dataPins[0] = d0;
             _dataPins[1] = d1;
@@ -36,11 +36,31 @@ namespace TestLiquidCrystal
             _dataPins[6] = 0;
             _dataPins[7] = 0;
             _dataPinMode = DataPinMode.Four;
-            
-            Initialize(lines,dotSize);
+
+            Initialize(lines, dotSize);
+        }
+        public LiquidCrystal(int rs, int enable,
+            int d0, int d1, int d2, int d3,
+            int d4, int d5, int d6, int d7,
+            int rwPin = 255, uint lines = 1, uint dotSize = 0x00)
+        {
+            _rsPin = rs;
+            _rwPin = rwPin;
+            _enablePin = enable;
+            _dataPins[0] = d0;
+            _dataPins[1] = d1;
+            _dataPins[2] = d2;
+            _dataPins[3] = d3;
+            _dataPins[4] = d4;
+            _dataPins[5] = d5;
+            _dataPins[6] = d6;
+            _dataPins[7] = d7;
+            _dataPinMode = DataPinMode.Eight;
+
+            Initialize(lines, dotSize);
         }
 
-        private void Initialize(uint lines, uint dotSize )
+        private void Initialize(uint lines, uint dotSize)
         {
             _displayFunctionCommand = new DisplayFunctionCommand(lines, dotSize, _dataPinMode);
             _displayEntryModeCommand = new DisplayEntryModeCommand(lines);
