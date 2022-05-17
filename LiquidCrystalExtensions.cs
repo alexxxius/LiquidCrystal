@@ -47,6 +47,15 @@ namespace LiquidCrystal
             lcd.Blink();
             Thread.Sleep(millisecondsTimeout);
         }
+
+        public static void IntermittentDisplay(this LiquidCrystal lcd, int millisecondsTimeout = 500)
+        {
+            lcd.NoDisplay();
+            Thread.Sleep(millisecondsTimeout);
+            lcd.Display();
+            Thread.Sleep(millisecondsTimeout);
+        }
+        
         public static void Write(this LiquidCrystal lcd,  string message)
         {
             foreach (var c in message) lcd.Write(c);
